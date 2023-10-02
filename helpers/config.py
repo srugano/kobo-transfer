@@ -1,21 +1,22 @@
 import json
 import os
 import pathlib
-import requests
 import sys
+
+import requests
 
 from .singleton import Singleton
 
 
 class Config(metaclass=Singleton):
     BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
-    LOG_DIR = '.log'
+    LOG_DIR = ".log"
     LOG_LOCATION = os.path.join(BASE_DIR, LOG_DIR)
-    FAILURES_FILE = 'failures.txt'
+    FAILURES_FILE = "failures.txt"
     FAILURES_LOCATION = os.path.join(LOG_DIR, FAILURES_FILE)
-    DEFAULT_CONFIG_FILE = 'config.json'
+    DEFAULT_CONFIG_FILE = "config.json"
     DEFAULT_CONFIG_LOCATION = os.path.join(BASE_DIR, DEFAULT_CONFIG_FILE)
-    ATTACHMENTS_DIR = 'attachments'
+    ATTACHMENTS_DIR = "attachments"
     REWRITE_DOWNLOAD_URL = True
 
     def __init__(self, config_file=None, validate=True):
@@ -29,8 +30,8 @@ class Config(metaclass=Singleton):
 
     def get_config(self):
         data = self._read_config()
-        src = self._append_additional_config_data(data['src'])
-        dest = self._append_additional_config_data(data['dest'])
+        src = self._append_additional_config_data(data["src"])
+        dest = self._append_additional_config_data(data["dest"])
         return src, dest
 
     @property
@@ -43,13 +44,13 @@ class Config(metaclass=Singleton):
 
     def _read_failed_transfer_uuids(self):
         if os.path.exists(self.FAILURES_LOCATION):
-            with open(self.FAILURES_LOCATION, 'r') as f:
-                self.last_failed_uuids = f.read().split('\n')[:-1]
+            with open(self.FAILURES_LOCATION, "r") as f:
+                self.last_failed_uuids = f.read().split("\n")[:-1]
             # burn after reading
             os.remove(self.FAILURES_LOCATION)
 
     def _read_config(self):
-        with open(self.config_file, 'r') as f:
+        with open(self.config_file, "r") as f:
             config = json.loads(f.read())
         return config
 
@@ -57,62 +58,54 @@ class Config(metaclass=Singleton):
     def _append_additional_config_data(data):
         api_v1 = f"{data['kc_url']}/api/v1"
         api_v2 = f"{data['kf_url']}/api/v2"
-        assets_url = f'{api_v2}/assets'
+        assets_url = f"{api_v2}/assets"
         asset_url = f"{api_v2}/assets/{data['asset_uid']}"
         return {
             **data,
-            'api_v1': api_v1,
-            'api_v2': api_v2,
-            'assets_url': assets_url,
-            'asset_url': asset_url,
-            'submission_url': f'{api_v1}/submissions',
-            'forms_url': f'{api_v1}/forms',
-            'headers': {'Authorization': f"Token {data['token']}"},
-            'params': {'format': 'json'},
-            'deployment_url': f'{asset_url}/deployment/',
-            'xml_url': f'{asset_url}/data.xml',
-            'data_url': f'{asset_url}/data',
+            "api_v1": api_v1,
+            "api_v2": api_v2,
+            "assets_url": assets_url,
+            "asset_url": asset_url,
+            "submission_url": f"{api_v1}/submissions",
+            "forms_url": f"{api_v1}/forms",
+            "headers": {"Authorization": f"Token {data['token']}"},
+            "params": {"format": "json", "limit": "999999999"},
+            "deployment_url": f"{asset_url}/deployment/",
+            "xml_url": f"{asset_url}/data.xml",
+            "data_url": f"{asset_url}/data",
         }
 
     def _validate_config(self):
-        print('🕵️ Validating config file')
+        print("🕵️ Validating config file")
 
         def invalid(msg):
             print(msg)
             sys.exit()
 
         if not os.path.exists(self.config_file):
-            invalid(f'⚠️ Config file `{self.config_file}` does not exist.')
+            invalid(f"⚠️ Config file `{self.config_file}` does not exist.")
 
-        with open(self.config_file, 'r') as f:
+        with open(self.config_file, "r") as f:
             try:
                 _ = json.loads(f.read())
             except json.decoder.JSONDecodeError:
-                invalid(f'⚠️ Could not read `{self.config_file}`.')
+                invalid(f"⚠️ Could not read `{self.config_file}`.")
 
-        for loc, config in dict(
-            zip(['src', 'dest'], self.get_config())
-        ).items():
-            kf_res = requests.get(
-                url=config['api_v2'], headers=config['headers']
-            )
+        for loc, config in dict(zip(["src", "dest"], self.get_config())).items():
+            kf_res = requests.get(url=config["api_v2"], headers=config["headers"])
             if kf_res.status_code != 200:
-                invalid(f'⚠️ Invalid token for `{loc}`.')
-            kc_res = requests.get(
-                url=config['api_v1'], headers=config['headers']
-            )
+                invalid(f"⚠️ Invalid token for `{loc}`.")
+            kc_res = requests.get(url=config["api_v1"], headers=config["headers"])
             if kc_res.status_code != 200:
-                invalid(f'⚠️ Invalid `kc_url` for `{loc}`.')
+                invalid(f"⚠️ Invalid `kc_url` for `{loc}`.")
             kf_res = requests.get(
-                url=config['assets_url'],
-                headers=config['headers'],
-                params=config['params'],
+                url=config["assets_url"],
+                headers=config["headers"],
+                params=config["params"],
             )
             if kf_res.status_code != 200:
-                invalid(f'⚠️ Invalid `kf_url` for `{loc}`.')
-            assets = kf_res.json()['results']
-            asset_uids = [a['uid'] for a in assets]
-            if config['asset_uid'] not in asset_uids:
-                invalid(
-                    f"⚠️ Asset `{config['asset_uid']}` not present in `{loc}`."
-                )
+                invalid(f"⚠️ Invalid `kf_url` for `{loc}`.")
+            assets = kf_res.json()["results"]
+            asset_uids = [a["uid"] for a in assets]
+            if config["asset_uid"] not in asset_uids:
+                invalid(f"⚠️ Asset `{config['asset_uid']}` not present in `{loc}`.")
