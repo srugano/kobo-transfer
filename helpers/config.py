@@ -71,21 +71,21 @@ class Config(metaclass=Singleton):
         asset_url = f"{api_v2}/assets/{data['asset_uid']}"
         return {
             **data,
-            'api_v1': api_v1,
-            'api_v2': api_v2,
-            'assets_url': assets_url,
-            'asset_url': asset_url,
-            'asset_url_json': f'{asset_url}.json',
-            'submission_url': f'{api_v1}/submissions',
-            'forms_url': f'{api_v1}/forms',
-            'headers': {'Authorization': f"Token {data['token']}"},
-            'params': {'format': 'json'},
-            'deployment_url': f'{asset_url}/deployment/',
-            'xml_url': f'{asset_url}/data.xml',
-            'data_url': f'{asset_url}/data',
-            'files_url': f'{asset_url}/files',
-            'validation_statuses_url': f'{asset_url}/data/validation_statuses.json',
-            'advanced_submission_url': f"{data['kf_url']}/advanced_submission_post/{data['asset_uid']}",
+            "api_v1": api_v1,
+            "api_v2": api_v2,
+            "assets_url": assets_url,
+            "asset_url": asset_url,
+            "asset_url_json": f"{asset_url}.json",
+            "submission_url": f"{api_v1}/submissions",
+            "forms_url": f"{api_v1}/forms",
+            "headers": {"Authorization": f"Token {data['token']}"},
+            "params": {"format": "json"},
+            "deployment_url": f"{asset_url}/deployment/",
+            "xml_url": f"{asset_url}/data.xml",
+            "data_url": f"{asset_url}/data",
+            "files_url": f"{asset_url}/files",
+            "validation_statuses_url": f"{asset_url}/data/validation_statuses.json",
+            "advanced_submission_url": f"{data['kf_url']}/advanced_submission_post/{data['asset_uid']}",
         }
 
     def _validate_config(self):
@@ -110,19 +110,16 @@ class Config(metaclass=Singleton):
                 invalid(f"⚠️ Invalid token for `{loc}`.")
             kc_res = requests.get(url=config["api_v1"], headers=config["headers"])
             if kc_res.status_code != 200:
-                invalid(f'⚠️ Invalid `kc_url` for `{loc}`.')
+                invalid(f"⚠️ Invalid `kc_url` for `{loc}`.")
 
-            if not (loc == 'dest' and self.dest_without_asset_uid):
+            if not (loc == "dest" and self.dest_without_asset_uid):
                 kf_res = requests.get(
-                    url=config['asset_url'],
-                    headers=config['headers'],
-                    params=config['params'],
+                    url=config["asset_url"],
+                    headers=config["headers"],
+                    params=config["params"],
                 )
                 if kf_res.status_code != 200:
-                    invalid(f'⚠️ Asset UID does not exist for `{loc}`.')
+                    invalid(f"⚠️ Asset UID does not exist for `{loc}`.")
                 asset_details = kf_res.json()
-                if not asset_details['has_deployment']:
-                    invalid(
-                        f"⚠️ Asset `{config['asset_uid']}` not deployed. "
-                        'Please deploy and try again.'
-                    )
+                if not asset_details["has_deployment"]:
+                    invalid(f"⚠️ Asset `{config['asset_uid']}` not deployed. " "Please deploy and try again.")

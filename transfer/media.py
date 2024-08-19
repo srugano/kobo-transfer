@@ -40,9 +40,7 @@ def download_all_media(data_url, stats):
     config = Config().src
 
     data_url = data_url or config["data_url"]
-    data_res = requests.get(
-        data_url, headers=config["headers"], params=config["params"]
-    )
+    data_res = requests.get(data_url, headers=config["headers"], params=config["params"])
     if data_res.status_code != 200:
         return stats
 
@@ -59,17 +57,15 @@ def download_all_media(data_url, stats):
         if not attachments:
             continue
 
-        sub_dir = os.path.join(
-            Config.ATTACHMENTS_DIR, config["asset_uid"], sub["_uuid"]
-        )
+        sub_dir = os.path.join(Config.ATTACHMENTS_DIR, config["asset_uid"], sub["_uuid"])
         if not os.path.isdir(sub_dir):
             os.makedirs(sub_dir)
 
         for attachment in attachments:
             # Need to strip the query param otherwise it doesn't grab
             # the media content
-            download_url = attachment['download_url'].strip('?format=json')
-            filename = get_filename(attachment['filename'])
+            download_url = attachment["download_url"].strip("?format=json")
+            filename = get_filename(attachment["filename"])
 
             file_path = os.path.join(sub_dir, filename)
             if os.path.exists(file_path):

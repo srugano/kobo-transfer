@@ -3,11 +3,7 @@ def left_join(left_list, right_list, on):
         {
             **item_left,
             **next(
-                (
-                    item_right
-                    for item_right in right_list
-                    if item_right[on] == item_left[on]
-                ),
+                (item_right for item_right in right_list if item_right[on] == item_left[on]),
                 {},
             ),
         }
