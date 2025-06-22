@@ -14,11 +14,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# WARNING: Keep your tokens and keys secure.
 try:
     KOBO_API_TOKEN = os.environ["KOBO_API_TOKEN"] 
     GOOGLE_API_KEY = os.environ["GEMINI_API_KEY"]
-    ASSET_UID = os.environ["ASSET_UID"]  # e.g., "kobo-asset-uid"
+    ASSET_UID = os.environ["ASSET_UID"]
     DATA_API_URL = os.environ["DATA_API_URL"]
 except KeyError as e:
     print(f"❌ Error: Environment variable {e} not set.")
@@ -29,6 +28,9 @@ except KeyError as e:
 IMAGE_MODEL = "imagen-3.0-generate-002"
 
 fake = Faker()
+name_locales = ['en_US', 'ru_RU', 'ar_SA', 'bn_BD', 'zh_CN']
+name_fakers = [Faker(locale) for locale in name_locales]
+
 try:
     client = genai.Client(api_key=GOOGLE_API_KEY)
 except Exception as e:
@@ -106,7 +108,7 @@ def create_and_submit_one_form(with_images=False):
             generated_images[consent_filename] = (consent_filename, consent_buffer, 'image/png')
         else:
             print("⚠️ Warning: Consent image generation failed. Proceeding without images for this submission.")
-            with_images = False # Downgrade this submission to not have images
+            with_images = False 
             consent_filename = None
     else:
         print("ℹ️ This submission will not include images.")
@@ -135,16 +137,17 @@ def create_and_submit_one_form(with_images=False):
             else:
                 details["role_i_c"] = "none"
 
-        full_name = fake.name()
+        name_faker = choice(name_fakers)
+        full_name = name_faker.name()
         details["full_name_i_c"] = full_name
+        
         details["birth_date_i_c"] = fake.date_of_birth(minimum_age=age, maximum_age=age).strftime("%Y-%m-%d")
         details["estimated_birth_date_i_c"] = "0"
         details["gender_i_c"] = choice(["female", "male"])
 
-        # Always generate for the Head of Household, optional for others
         if with_images and (i == 0 or choice([True, False])):
             photo_filename = f"photo_{i}.png"
-            prompt = f"A realistic, high-quality, passport-style photo of a {age}-year-old {details['gender_i_c']} person from Burundi named {full_name}. They have a neutral expression and are against a plain, light-colored background. Photorealistic."
+            prompt = f"A realistic, high-quality, passport-style photo of a {age}-year-old {details['gender_i_c']} person from DRC named {full_name}. They have a neutral expression and are against a plain, light-colored background. Photorealistic."
             image_buffer = generate_image_in_memory(prompt)
             if image_buffer:
                 details["photo_i_c"] = photo_filename
@@ -156,11 +159,11 @@ def create_and_submit_one_form(with_images=False):
             if choice([True, False]):
                 id_types.append("national_id")
                 identification["national_id_no_i_c"] = fake.ssn()
-                identification["national_id_issuer_i_c"] = "BDI"
+                identification["national_id_issuer_i_c"] = "COD"
                 
                 if with_images and choice([True, False]):
                     id_photo_filename = f"national_id_{i}.png"
-                    prompt = f"A realistic, high-quality photo of a fictional Burundi National ID card for '{full_name}'. The card is lying flat on a table. It includes a photo of a Burundian person, placeholder text in French and Kirundi, and a national emblem. All personal details and numbers are fake and illegible."
+                    prompt = f"A realistic, high-quality photo of a fictional DRC National ID card for '{full_name}'. The card is lying flat on a table. It includes a photo of a Burundian person, placeholder text in French and Kirundi, and a national emblem. All personal details and numbers are fake and illegible."
                     image_buffer = generate_image_in_memory(prompt)
                     if image_buffer:
                         identification["national_id_photo_i_c"] = id_photo_filename
@@ -181,12 +184,15 @@ def create_and_submit_one_form(with_images=False):
     if with_images and consent_filename:
         consent_data["consent_sign_h_c"] = consent_filename
 
+    enumerator_name_faker = choice(name_fakers)
+    enumerator_name = enumerator_name_faker.name()
+
     submission_data = {
         "start": datetime.now().isoformat(),
         "end": (datetime.now() + timedelta(minutes=randint(5, 20))).isoformat(),
         "deviceid": fake.pystr(10, 15),
         "registration_method_h_c": "hh_registration",
-        "name_enumerator_h_c": fake.name(),
+        "name_enumerator_h_c": enumerator_name,
         "org_name_enumerator_h_c": choice(["AVSI", "UNCAF", "Pertinent", "AGEBU", "HELP", "Abigail"]),
         "consent": consent_data,
         "setup": {
@@ -194,9 +200,11 @@ def create_and_submit_one_form(with_images=False):
             "currency_h_c": "BIF"
         },
         "household_location": {
-            "country_h_c": "BDI",
-            "admin1_h_c": choice(["BDI001", "BDI002", "BDI003", "BDI004"]),
-            "admin2_h_c": choice(["BDI017016", "BDI017015", "BDI017014", "BDI002004", "BDI003009"]),
+            "country_h_c": "COD",
+            "admin1_h_c": choice(["CD52", "CD41", "CD71", "CD73"]),
+            "admin2_h_c": choice(["CD5204", "CD5207", "CD5409", "CD5111", "CD3202"]),
+            "admin3_h_c": choice(["CD5409ZS01", "CD4304ZS01", "CD5409ZS02", "CD5204ZS01", "CD6105ZS01"]),
+            "admin4_h_c": choice(["CD5409ZS01AS20", "CD5409ZS01AS21", "CD5409ZS01AS22", "CD5409ZS01AS23", "CD5409ZS01AS24"]),
             "village_h_c": fake.street_name(),
             "hh_geopoint_h_c": f"{fake.latitude()} {fake.longitude()} 0 0",
         },
