@@ -22,31 +22,29 @@ def del_media():
 
 def get_media(verbosity=0, chunk_size=1024, throttle=0.1, limit=1000, query=""):
     config = Config().src
-    config.update(
-        {
-            "params": get_params(limit=limit, query=query),
-            "verbosity": verbosity,
-            "chunk_size": chunk_size,
-            "throttle": throttle,
-        }
-    )
-    stats = download_all_media(
+    params = get_params(limit=limit, query=query)
+    download_all_media(
         data_url=config["data_url"],
         stats=get_clean_stats(),
+        params=params,
+        verbosity=verbosity,
+        chunk_size=chunk_size,
+        throttle=throttle,
     )
 
 
-def download_all_media(data_url, stats):
+def download_all_media(data_url, stats, params, verbosity, chunk_size, throttle):
     config = Config().src
 
-    data_url = data_url or config["data_url"]
-    data_res = requests.get(data_url, headers=config["headers"], params=config["params"])
+    url_to_fetch = data_url or config["data_url"]
+    data_res = requests.get(url_to_fetch, headers=config["headers"], params=params)
+
     if data_res.status_code != 200:
         return stats
 
     data = data_res.json()
-    next_url = data["next"]
-    results = data["results"]
+    next_url = data.get("next")
+    results = data.get("results", [])
 
     if not results:
         return stats
@@ -69,39 +67,54 @@ def download_all_media(data_url, stats):
 
             file_path = os.path.join(sub_dir, filename)
             if os.path.exists(file_path):
-                if config["verbosity"] == 3:
+                if verbosity == 3:
                     print(f"File already exists, skipping: {file_path}")
                 stats["skipped"] += 1
                 continue
-            download_media_file(url=download_url, path=file_path, stats=stats)
+            download_media_file(
+                url=download_url,
+                path=file_path,
+                stats=stats,
+                verbosity=verbosity,
+                chunk_size=chunk_size,
+                throttle=throttle,
+            )
             print(".", end="", flush=True)
 
     if next_url is not None:
-        download_all_media(data_url=next_url, stats=stats)
+        # Pass all params along to the recursive call to ensure filters are maintained
+        download_all_media(
+            data_url=next_url,
+            stats=stats,
+            params=params,
+            verbosity=verbosity,
+            chunk_size=chunk_size,
+            throttle=throttle,
+        )
 
     print()
 
     return stats
 
 
-def download_media_file(url, path, stats):
+def download_media_file(url, path, stats, verbosity, chunk_size, throttle):
     config = Config().src
     stream_res = requests.get(url, stream=True, headers=config["headers"])
     if stream_res.status_code != 200:
-        if config["verbosity"] == 3:
+        if verbosity == 3:
             print(f"Fail: {path}")
         stats["failed"] += 1
         return stats
 
     with open(path, "wb") as f:
-        for chunk in stream_res.iter_content(config["chunk_size"]):
+        for chunk in stream_res.iter_content(chunk_size):
             f.write(chunk)
 
-    if config["verbosity"] == 3:
+    if verbosity == 3:
         print(f"Success: {path}")
     stats["successful"] += 1
 
-    time.sleep(config["throttle"])
+    time.sleep(throttle)
 
     return stats
 

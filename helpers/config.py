@@ -105,21 +105,45 @@ class Config(metaclass=Singleton):
                 invalid(f"⚠️ Could not read `{self.config_file}`.")
 
         for loc, config in dict(zip(["src", "dest"], self.get_config())).items():
-            kf_res = requests.get(url=config["api_v2"], headers=config["headers"])
-            if kf_res.status_code != 200:
-                invalid(f"⚠️ Invalid token for `{loc}`.")
-            kc_res = requests.get(url=config["api_v1"], headers=config["headers"])
-            if kc_res.status_code != 200:
-                invalid(f"⚠️ Invalid `kc_url` for `{loc}`.")
-
-            if not (loc == "dest" and self.dest_without_asset_uid):
-                kf_res = requests.get(
-                    url=config["asset_url"],
-                    headers=config["headers"],
-                    params=config["params"],
-                )
+            try:
+                # Check KF API endpoint
+                kf_res = requests.get(url=config["api_v2"], headers=config["headers"], timeout=10)
                 if kf_res.status_code != 200:
-                    invalid(f"⚠️ Asset UID does not exist for `{loc}`.")
-                asset_details = kf_res.json()
-                if not asset_details["has_deployment"]:
-                    invalid(f"⚠️ Asset `{config['asset_uid']}` not deployed. " "Please deploy and try again.")
+                    invalid(
+                        f"⚠️ Could not validate `{loc}`. "
+                        f"URL `{config['api_v2']}` returned status {kf_res.status_code}. "
+                        "Please check `kf_url` and `token` in your config file."
+                    )
+                
+                # Check KC API endpoint
+                kc_res = requests.get(url=config["api_v1"], headers=config["headers"], timeout=10)
+                if kc_res.status_code != 200:
+                    invalid(
+                        f"⚠️ Could not validate `{loc}`. "
+                        f"URL `{config['api_v1']}` returned status {kc_res.status_code}. "
+                        "Please check `kc_url` and `token` in your config file."
+                    )
+
+                if not (loc == "dest" and self.dest_without_asset_uid):
+                    asset_res = requests.get(
+                        url=config["asset_url"],
+                        headers=config["headers"],
+                        params=config["params"],
+                        timeout=10
+                    )
+                    if asset_res.status_code != 200:
+                        invalid(
+                            f"⚠️ Could not find asset for `{loc}`. "
+                            f"URL `{config['asset_url']}` returned status {asset_res.status_code}. "
+                            "Please check `asset_uid` in your config file."
+                        )
+                    asset_details = asset_res.json()
+                    if not asset_details.get("has_deployment"):
+                        invalid(f"⚠️ Asset `{config['asset_uid']}` for `{loc}` is not deployed. " "Please deploy and try again.")
+
+            except requests.exceptions.RequestException as e:
+                invalid(
+                    f"⚠️ A network error occurred while validating `{loc}`. "
+                    f"URL: `{e.request.url}`. Error: {e}. "
+                    "Please check your network connection and the URLs in your config file."
+                )

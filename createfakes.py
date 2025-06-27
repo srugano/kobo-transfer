@@ -14,11 +14,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# WARNING: Keep your tokens and keys secure.
 try:
-    KOBO_API_TOKEN = os.environ["KOBO_API_TOKEN"] 
+    KOBO_API_TOKEN = os.environ["KOBO_API_TOKEN"]
     GOOGLE_API_KEY = os.environ["GEMINI_API_KEY"]
-    ASSET_UID = os.environ["ASSET_UID"]  # e.g., "kobo-asset-uid"
+    ASSET_UID = os.environ["ASSET_UID"]
     DATA_API_URL = os.environ["DATA_API_URL"]
 except KeyError as e:
     print(f"❌ Error: Environment variable {e} not set.")
@@ -37,7 +36,6 @@ except Exception as e:
 
 
 def generate_image_in_memory(prompt: str) -> io.BytesIO | None:
-    """Generates an image from a prompt using the Imagen model and returns it as an in-memory BytesIO object."""
     print(f"🎨 Generating image for prompt: '{prompt[:60]}...'")
     try:
         response = client.models.generate_images(
@@ -70,7 +68,6 @@ def generate_image_in_memory(prompt: str) -> io.BytesIO | None:
         return None
 
 def dict_to_xml_str(submission_dict, asset_uid):
-    """Converts a submission dictionary to a KoBo-compatible XML string."""
     root = Element('data', id=asset_uid)
 
     def build_xml(parent, data):
@@ -92,7 +89,6 @@ def dict_to_xml_str(submission_dict, asset_uid):
     return pretty_xml_str
 
 def create_and_submit_one_form(with_images=False):
-    """Generates and submits a single fake data entry, optionally with images."""
     generated_images = {}
     consent_filename = None
 
@@ -106,7 +102,7 @@ def create_and_submit_one_form(with_images=False):
             generated_images[consent_filename] = (consent_filename, consent_buffer, 'image/png')
         else:
             print("⚠️ Warning: Consent image generation failed. Proceeding without images for this submission.")
-            with_images = False # Downgrade this submission to not have images
+            with_images = False
             consent_filename = None
     else:
         print("ℹ️ This submission will not include images.")
@@ -118,7 +114,6 @@ def create_and_submit_one_form(with_images=False):
 
     for i in range(household_size):
         details = {}
-        # First person is always Head of Household
         if i == 0:
             details["relationship_i_c"] = "head"
             age = randint(25, 65)
@@ -141,7 +136,6 @@ def create_and_submit_one_form(with_images=False):
         details["estimated_birth_date_i_c"] = "0"
         details["gender_i_c"] = choice(["female", "male"])
 
-        # Always generate for the Head of Household, optional for others
         if with_images and (i == 0 or choice([True, False])):
             photo_filename = f"photo_{i}.png"
             prompt = f"A realistic, high-quality, passport-style photo of a {age}-year-old {details['gender_i_c']} person from Burundi named {full_name}. They have a neutral expression and are against a plain, light-colored background. Photorealistic."

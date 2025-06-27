@@ -58,7 +58,6 @@ def get_params(uuids=[], limit=10000, fields=[]):
 
 
 def get_diff_uuids(config):
-    # TODO: make limit dynamic
     params = get_params(fields=["_uuid"], limit=1000)
     src_uuids = get_uuids(config_loc=config.src, params=params)
     dest_uuids = get_uuids(config_loc=config.dest, params=params)
@@ -81,6 +80,7 @@ def main(
     chunk_size=100,
     config_file=None,
     skip_media=False,
+    max_submissions=None,
 ):
     if src_asset_uid:
         validate = False
@@ -113,8 +113,18 @@ def main(
     submission_edit_data = get_submission_edit_data()
 
     def transfer(all_results, url=None):
+        if max_submissions is not None and len(all_results) >= max_submissions:
+            return
+
         parsed_xml = get_src_submissions_xml(xml_url=url)
         submissions = parsed_xml.findall(f"results/")
+
+        if max_submissions is not None:
+            remaining_to_transfer = max_submissions - len(all_results)
+            if remaining_to_transfer <= 0:
+                return
+            submissions = submissions[:remaining_to_transfer]
+
         next_ = parsed_xml.find("next").text
         results = transfer_submissions(
             submissions,
@@ -123,6 +133,9 @@ def main(
             regenerate=regenerate,
         )
         all_results += results
+
+        if max_submissions is not None and len(all_results) >= max_submissions:
+            return
 
         if next_ != "None" and next_ is not None:
             transfer(all_results, next_)
@@ -140,9 +153,15 @@ def main(
             print("👌 Projects are in-sync")
             sys.exit()
 
-        # run through chunks of uuids
+        if max_submissions is not None:
+            print(f"ℹ️ Limiting sync to a maximum of {max_submissions} submissions.")
+            diff_uuids = diff_uuids[:max_submissions]
+
         first_run = True
         for chunked_uuids in chunker(diff_uuids, chunk_size):
+            if max_submissions is not None and len(all_results) >= max_submissions:
+                break
+
             query = json.dumps({"_uuid": {"$in": chunked_uuids}})
             xml_url_src = config_src["xml_url"] + f"?limit={limit}&query={query}"
 
@@ -281,6 +300,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Suppress stdout",
     )
+    parser.add_argument(
+        "--max-submissions",
+        "-m",
+        default=None,
+        type=int,
+        help="Maximum number of submissions to transfer in total. Useful for testing.",
+    )
     args = parser.parse_args()
 
     try:
@@ -299,8 +325,8 @@ if __name__ == "__main__":
             chunk_size=args.chunk_size,
             config_file=args.config_file,
             skip_media=args.skip_media,
+            max_submissions=args.max_submissions,
         )
     except KeyboardInterrupt:
         print("🛑 Stopping run")
-        # Do something here so we can pick up again where this leaves off
         sys.exit()
