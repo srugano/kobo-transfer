@@ -7,7 +7,7 @@ Transfer assets and submissions between two projects.
 1. Clone a copy of this repo somewhere on your local machine:
 
 ```bash
-git clone https://github.com/kobotoolbox/kobo-transfer
+git clone https://github.com/srugano/kobo-transfer
 ```
 
 2. Install `pip` packages from `requirements.txt`. See detailed steps
