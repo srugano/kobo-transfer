@@ -46,12 +46,18 @@ these, the config URLs are the following:
 
 ## Usage
 
+This script can be used to transfer data between projects or to generate fake data for testing.
+
+### Transferring Data
+
+To transfer an asset and its submissions:
 ```bash
 python3 run.py \
   [--config-file/-c <file path>] [--asset/-a] [--sync/-s] [--no-validate/-N] \
   [--validation-status/-vs] [--analysis-data/-ad] [--keep-media/-k] \
   [--src-asset-uid/-sau <uid>] [--limit/-l <limit>] [--chunk-size/-cs <size>] \
-  [--regenerate-uuids/-R] [--last-failed/-lf] [--quiet/-q]
+  [--regenerate-uuids/-R] [--last-failed/-lf] [--quiet/-q] [--skip-media/-sm] \
+  [--show-asset <src|dest>]
 ```
 
 To transfer the asset, its form media and versions from the `src` to `dest`
@@ -155,6 +161,49 @@ curl -s 'https://kf.kobotoolbox.org/api/v2/assets.json' \
   jq '.results[] | select(.asset_type == "survey" and .has_deployment == true) | .uid' | \
   xargs -I {} python3 run.py --src-asset-uid "{}" --asset --sync -c <config file>
 ```
+
+### Creating Fake Submissions
+
+To generate and submit fake data to the `dest` project:
+
+```bash
+python3 run.py --create-fakes <N> \
+  [--config-file/-c <file path>] [--image-probability <P>] \
+  [--workers <W>] [--throttle <T>]
+```
+
+This feature is useful for testing. It uses the `Faker` library to generate realistic data and can optionally include images in submissions.
+
+**Note:** To include images in fake submissions, you need a local directory of images. The script is currently configured to use the CelebA dataset, which can be downloaded from Kaggle. Make sure to update the `IMAGE_DIR` path in `utils/createfakes.py` to point to your local image directory.
+
+To create 100 fake submissions with a 50% chance of each including images:
+
+```bash
+python3 run.py --create-fakes 100 --image-probability 0.5
+```
+
+You can control the concurrency with the `--workers` argument and add a delay between requests with `--throttle` to avoid rate-limiting issues.
+
+```bash
+python3 run.py --create-fakes 500 --workers 20 --throttle 0.5
+```
+
+## How it Works
+
+This section provides a brief overview of the key modules in the project.
+
+### Asset Transfer (`transfer/asset.py`)
+
+This module is responsible for transferring an entire XLSForm asset from a source project to a destination project. An "asset" includes not just the form's structure, but also its settings, all its deployed versions, and any associated form media (e.g., images or CSV files used in `select_one_from_file` questions).
+
+The transfer process is as follows:
+1.  **Fetch Asset Details**: It starts by retrieving the asset's configuration, version history, and form media file list from the source server.
+2.  **Create Destination Asset**: A new, empty asset is created on the destination server.
+3.  **Transfer Form Media**: Any media files associated with the form are downloaded from the source and uploaded to the new destination asset.
+4.  **Replicate Version History**: The script iterates through every deployed version from the source project—from oldest to newest—and deploys each one sequentially on the destination server. This ensures that the destination asset has the same version history as the source.
+
+This comprehensive process guarantees that the destination asset is an exact replica, which is critical for ensuring data compatibility before transferring submissions.
+
 
 ## Media attachments
 

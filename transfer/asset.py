@@ -24,6 +24,15 @@ def get_src_asset_details(config_src):
     return asset_setup_content, deployed_versions, files
 
 
+def get_asset_definition(config_loc):
+    """
+    Get the full asset definition from the API.
+    """
+    res = requests.get(url=config_loc["asset_url_json"], headers=config_loc["headers"])
+    res.raise_for_status()
+    return res.json()
+
+
 def create_asset(config_dest, asset_setup_content):
     """
     Create the `dest` asset, initially without content.

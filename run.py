@@ -7,7 +7,12 @@ import requests
 
 from helpers.config import Config
 from transfer.analysis import sync_analysis_data
-from transfer.asset import transfer_asset, get_src_asset_details, create_asset
+from transfer.asset import (
+    transfer_asset,
+    get_src_asset_details,
+    create_asset,
+    get_asset_definition,
+)
 from transfer.media import get_media, del_media
 from transfer.xml import (
     get_src_submissions_xml,
@@ -16,6 +21,7 @@ from transfer.xml import (
     transfer_submissions,
 )
 from transfer.validation_status import sync_validation_statuses
+from utils.createfakes import create_fakes as create_fakes_func
 
 
 def get_uuids(config_loc, params):
@@ -81,11 +87,41 @@ def main(
     chunk_size=100,
     config_file=None,
     skip_media=False,
+    create_fakes=None,
+    image_probability=0.1,
+    show_asset=None,
+    workers=10,
+    throttle=0,
 ):
     if src_asset_uid:
         validate = False
 
     config = Config(config_file=config_file, validate=validate, asset=asset)
+
+    if show_asset:
+        print(f"🔎 Fetching asset definition for `{show_asset}` project...")
+        config_loc = getattr(config, show_asset)
+        try:
+            asset_definition = get_asset_definition(config_loc)
+            print(json.dumps(asset_definition, indent=2))
+        except requests.exceptions.HTTPError as http_err:
+            print(f"\n❌ HTTP error occurred: {http_err}")
+            print(f"Status Code: {http_err.response.status_code}")
+            print(f"Response Body: {http_err.response.text}")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+        sys.exit()
+
+    if create_fakes:
+        print(f"Creating {create_fakes} fake submissions for `dest` project.")
+        create_fakes_func(
+            config_dest=config.dest,
+            number=create_fakes,
+            image_probability=image_probability,
+            workers=workers,
+            throttle=throttle,
+        )
+        sys.exit()
 
     if src_asset_uid:
         config.update_config(loc="src", new_data={"asset_uid": src_asset_uid})
@@ -281,6 +317,34 @@ if __name__ == "__main__":
         action="store_true",
         help="Suppress stdout",
     )
+    parser.add_argument(
+        "--create-fakes",
+        type=int,
+        help="Create N fake submissions and send to `dest` project.",
+    )
+    parser.add_argument(
+        "--image-probability",
+        type=float,
+        default=0.1,
+        help="Used with `--create-fakes`. Probability (0.0 to 1.0) of a submission having images.",
+    )
+    parser.add_argument(
+        "--show-asset",
+        choices=["src", "dest"],
+        help="Show the full asset definition for `src` or `dest` project and exit.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=10,
+        help="Number of concurrent workers for creating fake data.",
+    )
+    parser.add_argument(
+        "--throttle",
+        type=float,
+        default=0,
+        help="Seconds to wait between each submission request to avoid rate-limiting.",
+    )
     args = parser.parse_args()
 
     try:
@@ -299,6 +363,11 @@ if __name__ == "__main__":
             chunk_size=args.chunk_size,
             config_file=args.config_file,
             skip_media=args.skip_media,
+            create_fakes=args.create_fakes,
+            image_probability=args.image_probability,
+            show_asset=args.show_asset,
+            workers=args.workers,
+            throttle=args.throttle,
         )
     except KeyboardInterrupt:
         print("🛑 Stopping run")
