@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime
 from xml.etree import ElementTree as ET
 
+import requests
+
 from .media import get_media, del_media
 from utils.text import get_valid_filename
 from helpers.config import Config
@@ -124,6 +126,10 @@ def transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate):
         except AttributeError:
             original_uuid = ""
             messages.append("`instanceID` was missing in submission XML")
+
+        for rel_element in submission_xml.findall(".//relationship_i_c"):
+            if rel_element.text == "TRUSTED_NEIGHBOUR":
+                rel_element.text = "NON_BENEFICIARY"
 
         if regenerate or not original_uuid:
             _uuid, formatted_uuid = generate_new_instance_id()

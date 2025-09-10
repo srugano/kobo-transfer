@@ -23,19 +23,36 @@ IMAGE_DIR = "/home/stock/.cache/kagglehub/datasets/jessicali9530/celeba-dataset/
 
 fake = Faker()
 
-try:
-    image_files = [os.path.join(IMAGE_DIR, f) for f in os.listdir(IMAGE_DIR) if os.path.isfile(os.path.join(IMAGE_DIR, f))]
-    if not image_files:
-        print(f"❌ Error: No images found in '{IMAGE_DIR}'")
+image_files = None
+
+
+def _initialize_image_files():
+    """Initializes the list of image files from the IMAGE_DIR."""
+    global image_files
+    # Check if already initialized (and not empty)
+    if image_files is not None:
+        return
+
+    try:
+        files = [
+            os.path.join(IMAGE_DIR, f)
+            for f in os.listdir(IMAGE_DIR)
+            if os.path.isfile(os.path.join(IMAGE_DIR, f))
+        ]
+        if not files:
+            print(f"❌ Error: No images found in '{IMAGE_DIR}'")
+            exit()
+        image_files = files
+    except FileNotFoundError:
+        print(f"❌ Error: Image directory not found at '{IMAGE_DIR}'")
+        print("Please make sure the local image dataset is available.")
         exit()
-except FileNotFoundError:
-    print(f"❌ Error: Image directory not found at '{IMAGE_DIR}'")
-    print("Please make sure the local image dataset is available.")
-    exit()
 
 
 def generate_image_in_memory() -> io.BytesIO | None:
     """Selects a random image from disk, resizes it, and returns it as an in-memory BytesIO object."""
+    _initialize_image_files()
+
     if not image_files:
         return None
     try:

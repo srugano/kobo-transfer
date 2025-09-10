@@ -128,7 +128,16 @@ def main(
 
     if asset:
         print("📋 Transferring asset, versions and form media")
-        asset_setup_content, *_ = get_src_asset_details(config_src=config.src)
+        try:
+            asset_setup_content, *_ = get_src_asset_details(config_src=config.src)
+        except requests.exceptions.HTTPError as http_err:
+            print(f"\n❌ HTTP error occurred: {http_err}")
+            print(f"Status Code: {http_err.response.status_code}")
+            print(f"Response Body: {http_err.response.text}")
+            sys.exit()
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            sys.exit()
         asset_uid = create_asset(config.dest, asset_setup_content)
         print(f"✨ New asset UID at `dest`: {asset_uid}")
         config.update_config(loc="dest", new_data={"asset_uid": asset_uid})
