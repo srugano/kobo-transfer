@@ -5,7 +5,7 @@ import os
 import uuid
 from datetime import datetime
 from xml.etree import ElementTree as ET
-
+import requests
 from .media import get_media, del_media
 from utils.text import get_valid_filename
 from helpers.config import Config
