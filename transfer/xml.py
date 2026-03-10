@@ -140,6 +140,16 @@ def transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate):
         update_element_value(submission_xml, "__version__", asset_data["__version__"])
         update_element_value(submission_xml, "formhub/uuid", asset_data["formhub_uuid"])
 
+        # Clear phone_no_alternative_i_c if it is exactly '+95'
+        for el in submission_xml.iter('phone_no_alternative_i_c'):
+            if el.text == '+95':
+                el.text = None
+
+        # Clear phone_no_i_c if it is exactly '+95'
+        for el in submission_xml.iter('phone_no_i_c'):
+            if el.text == '+95':
+                el.text = None
+
         submission_values = get_all_values_from_xml(submission_xml)
         xml_value_media_map = get_xml_value_media_mapping(submission_values)
 

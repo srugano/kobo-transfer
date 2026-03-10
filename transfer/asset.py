@@ -3,6 +3,15 @@ import json
 import requests
 
 
+def get_asset_definition(config_loc):
+    """
+    Fetch the full asset definition for a given project.
+    """
+    res = requests.get(url=config_loc["asset_url_json"], headers=config_loc["headers"])
+    res.raise_for_status()
+    return res.json()
+
+
 def get_src_asset_details(config_src):
     """
     Get the details needed from the `src` project to setup the `dest`:

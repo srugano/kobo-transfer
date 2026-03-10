@@ -16,7 +16,7 @@ def del_media():
         shutil.rmtree(media_path)
 
 
-def get_media(verbosity=0, chunk_size=1024, throttle=0.1, limit=1000, query=""):
+def get_media(verbosity=0, chunk_size=1024, throttle=0.1, limit=1000, query="", max_records=None):
     config = Config().src
     config.update(
         {
@@ -24,15 +24,17 @@ def get_media(verbosity=0, chunk_size=1024, throttle=0.1, limit=1000, query=""):
             "verbosity": verbosity,
             "chunk_size": chunk_size,
             "throttle": throttle,
+            "max_records": max_records,
         }
     )
     stats = download_all_media(
         data_url=config["data_url"],
         stats=get_clean_stats(),
+        processed_count=0,
     )
 
 
-def download_all_media(data_url, stats):
+def download_all_media(data_url, stats, processed_count=0):
     config = Config().src
 
     data_url = data_url or config["data_url"]
@@ -48,6 +50,10 @@ def download_all_media(data_url, stats):
 
     if not results:
         return stats
+
+    if config.get("max_records") is not None:
+        remaining = config["max_records"] - processed_count
+        results = results[:remaining]
 
     for sub in results:
         attachments = sub.get("_attachments", [])
@@ -76,8 +82,11 @@ def download_all_media(data_url, stats):
             download_media_file(url=download_url, path=file_path, stats=stats)
             print(".", end="", flush=True)
 
+    processed_count += len(results)
+
     if next_url is not None:
-        download_all_media(data_url=next_url, stats=stats)
+        if config.get("max_records") is None or processed_count < config["max_records"]:
+            download_all_media(data_url=next_url, stats=stats, processed_count=processed_count)
 
     print()
 

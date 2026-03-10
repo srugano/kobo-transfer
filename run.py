@@ -74,6 +74,7 @@ def get_diff_uuids(config):
 
 def main(
     limit,
+    max_records=None,
     asset=False,
     src_asset_uid=None,
     last_failed=False,
@@ -151,9 +152,16 @@ def main(
     def transfer(all_results, url=None):
         parsed_xml = get_src_submissions_xml(xml_url=url)
         submissions = parsed_xml.findall("results/")
+        
+        if max_records is not None:
+            remaining = max_records - len(all_results)
+            submissions_to_process = submissions[:remaining]
+        else:
+            submissions_to_process = submissions
+        
         next_ = parsed_xml.find("next").text
         results = transfer_submissions(
-            submissions,
+            submissions_to_process,
             submission_edit_data,
             quiet=quiet,
             regenerate=regenerate,
@@ -161,7 +169,8 @@ def main(
         all_results += results
 
         if next_ != "None" and next_ is not None:
-            transfer(all_results, next_)
+            if max_records is None or len(all_results) < max_records:
+                transfer(all_results, next_)
 
     xml_url_src = config_src["xml_url"] + f"?limit={limit}"
 
@@ -185,7 +194,7 @@ def main(
             if not skip_media:
                 if first_run:
                     print("📸 Getting all submission media", end=" ", flush=True)
-                get_media(query=query)
+                get_media(query=query, max_records=max_records)
 
             if first_run:
                 print("📨 Transferring submission data")
@@ -203,7 +212,7 @@ def main(
     if not sync:
         if not skip_media:
             print("📸 Getting all submission media", end=" ", flush=True)
-            get_media()
+            get_media(max_records=max_records)
 
         print("📨 Transferring submission data")
         transfer(all_results, xml_url_src)
@@ -225,6 +234,13 @@ if __name__ == "__main__":
         default=5000,
         type=int,
         help="Number of submissions included in each batch for download and upload.",
+    )
+    parser.add_argument(
+        "--max-records",
+        "-m",
+        default=None,
+        type=int,
+        help="Maximum total number of records to transfer.",
     )
     parser.add_argument(
         "--asset",
@@ -350,6 +366,7 @@ if __name__ == "__main__":
     try:
         main(
             limit=args.limit,
+            max_records=args.max_records,
             asset=args.asset,
             src_asset_uid=args.src_asset_uid,
             last_failed=args.last_failed,
