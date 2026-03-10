@@ -1,9 +1,8 @@
 import json
 import os
 import pathlib
-import sys
-
 import requests
+import sys
 
 from .singleton import Singleton
 
@@ -83,7 +82,7 @@ class Config(metaclass=Singleton):
             "deployment_url": f"{asset_url}/deployment/",
             "xml_url": f"{asset_url}/data.xml",
             "data_url": f"{asset_url}/data",
-            "files_url": f"{asset_url}/files",
+            "files_url": f"{asset_url}/files/",
             "validation_statuses_url": f"{asset_url}/data/validation_statuses.json",
             "advanced_submission_url": f"{data['kf_url']}/advanced_submission_post/{data['asset_uid']}",
         }
@@ -122,4 +121,7 @@ class Config(metaclass=Singleton):
                     invalid(f"⚠️ Asset UID does not exist for `{loc}`.")
                 asset_details = kf_res.json()
                 if not asset_details["has_deployment"]:
-                    invalid(f"⚠️ Asset `{config['asset_uid']}` not deployed. " "Please deploy and try again.")
+                    invalid(
+                        f"⚠️ Asset `{config['asset_uid']}` not deployed. "
+                        "Please deploy and try again."
+                    )

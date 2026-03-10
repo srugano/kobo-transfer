@@ -1,10 +1,6 @@
-import argparse
-import json
 import os
-import pathlib
 import re
 import shutil
-import sys
 import time
 
 import requests
@@ -40,7 +36,9 @@ def download_all_media(data_url, stats):
     config = Config().src
 
     data_url = data_url or config["data_url"]
-    data_res = requests.get(data_url, headers=config["headers"], params=config["params"])
+    data_res = requests.get(
+        data_url, headers=config["headers"], params=config["params"]
+    )
     if data_res.status_code != 200:
         return stats
 
@@ -57,7 +55,9 @@ def download_all_media(data_url, stats):
         if not attachments:
             continue
 
-        sub_dir = os.path.join(Config.ATTACHMENTS_DIR, config["asset_uid"], sub["_uuid"])
+        sub_dir = os.path.join(
+            Config.ATTACHMENTS_DIR, config["asset_uid"], sub["_uuid"]
+        )
         if not os.path.isdir(sub_dir):
             os.makedirs(sub_dir)
 

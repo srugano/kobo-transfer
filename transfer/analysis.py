@@ -9,8 +9,13 @@ def clean_sup_details(input_dict):
             if cleaned_value:  # Only add non-empty dictionaries
                 output_dict[key] = cleaned_value
         elif isinstance(value, list):
-            cleaned_list = [clean_sup_details(item) if isinstance(item, dict) else item for item in value]
-            cleaned_list = [item for item in cleaned_list if item]  # Remove empty dictionaries from the list
+            cleaned_list = [
+                clean_sup_details(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+            cleaned_list = [
+                item for item in cleaned_list if item
+            ]  # Remove empty dictionaries from the list
             if cleaned_list:  # Only add non-empty lists
                 output_dict[key] = cleaned_list
         else:
@@ -19,7 +24,9 @@ def clean_sup_details(input_dict):
 
     if "type" in output_dict and "val" in output_dict:
         if output_dict["type"] == "qual_select_multiple":
-            output_dict["val"] = [item["uuid"] for item in output_dict["val"] if "uuid" in item]
+            output_dict["val"] = [
+                item["uuid"] for item in output_dict["val"] if "uuid" in item
+            ]
 
         if output_dict["type"] == "qual_select_one":
             output_dict["val"] = output_dict["val"]["uuid"]

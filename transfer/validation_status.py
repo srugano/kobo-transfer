@@ -114,5 +114,7 @@ def sync_validation_statuses(config, chunk_size, limit):
         grouped[item["validation_status_uid"]].append(item)
     validation_data = dict(grouped)
 
-    res_stats = update_dest_validation_status(validation_data, config, stats, chunk_size)
+    res_stats = update_dest_validation_status(
+        validation_data, config, stats, chunk_size
+    )
     print_stats(res_stats)

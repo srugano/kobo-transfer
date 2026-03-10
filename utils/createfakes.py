@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 import io
 from PIL import Image
 from xml.etree.ElementTree import Element, SubElement, tostring
-from xml.dom.minidom import parseString
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
@@ -24,7 +23,11 @@ IMAGE_DIR = "/home/stock/.cache/kagglehub/datasets/jessicali9530/celeba-dataset/
 fake = Faker()
 
 try:
-    image_files = [os.path.join(IMAGE_DIR, f) for f in os.listdir(IMAGE_DIR) if os.path.isfile(os.path.join(IMAGE_DIR, f))]
+    image_files = [
+        os.path.join(IMAGE_DIR, f)
+        for f in os.listdir(IMAGE_DIR)
+        if os.path.isfile(os.path.join(IMAGE_DIR, f))
+    ]
     if not image_files:
         print(f"❌ Error: No images found in '{IMAGE_DIR}'")
         exit()
@@ -43,16 +46,17 @@ def generate_image_in_memory() -> io.BytesIO | None:
         with Image.open(image_path) as img:
             img.thumbnail((400, 400))  # Resize to keep memory usage reasonable
             img_buffer = io.BytesIO()
-            img.save(img_buffer, format='JPEG', quality=85)
+            img.save(img_buffer, format="JPEG", quality=85)
             img_buffer.seek(0)  # Rewind the buffer to the beginning before returning
             return img_buffer
     except Exception as e:
         tqdm.write(f"❌ Failed to load image from {image_path}. Error: {e}")
         return None
 
+
 def dict_to_xml_str(submission_dict, asset_uid):
     """Converts a submission dictionary to a KoBo-compatible XML string."""
-    root = Element('data', id=asset_uid)
+    root = Element("data", id=asset_uid)
 
     def build_xml(parent, data):
         for key, value in data.items():
@@ -65,18 +69,19 @@ def dict_to_xml_str(submission_dict, asset_uid):
                     build_xml(group_element, item)
             elif value is not None:
                 SubElement(parent, key).text = str(value)
-    
+
     build_xml(root, submission_dict)
-    
-    return tostring(root, 'utf-8')
+
+    return tostring(root, "utf-8")
+
 
 def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
     """Generates and submits a single fake data entry, optionally with images."""
     generated_images = {}
-    
+
     household_size = randint(1, 5)
     has_alternate = fake.boolean() and household_size > 1
-    
+
     individual_questions_list = []
 
     for i in range(household_size):
@@ -88,7 +93,7 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
         else:
             min_age = 1
             max_age = 80
-        
+
         birth_date = fake.date_of_birth(minimum_age=min_age, maximum_age=max_age)
         age = int((datetime.now().date() - birth_date).days / 365.24)
 
@@ -97,10 +102,17 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
             details["role_i_c"] = "primary"
         else:
             if age > 18:
-                details["relationship_i_c"] = choice(["daughterInLaw_sonInLaw", "wife_husband", "mother_father", "cousin"])
+                details["relationship_i_c"] = choice(
+                    [
+                        "daughterInLaw_sonInLaw",
+                        "wife_husband",
+                        "mother_father",
+                        "cousin",
+                    ]
+                )
             else:
                 details["relationship_i_c"] = "nephew_niece"
-            
+
             if i == 1 and has_alternate:
                 details["role_i_c"] = "alternate"
             else:
@@ -122,7 +134,11 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
             image_buffer = generate_image_in_memory()
             if image_buffer:
                 details["photo_i_c"] = photo_filename
-                generated_images[photo_filename] = (photo_filename, image_buffer, 'image/jpeg')
+                generated_images[photo_filename] = (
+                    photo_filename,
+                    image_buffer,
+                    "image/jpeg",
+                )
 
         identification = {}
         id_types = []
@@ -131,19 +147,25 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
                 id_types.append("national_id")
                 identification["national_id_no_i_c"] = fake.ssn()
                 identification["national_id_issuer_i_c"] = "AFG"
-                
+
                 if with_images and choice([True, False]):
                     id_photo_filename = f"national_id_{i}.jpg"
                     image_buffer = generate_image_in_memory()
                     if image_buffer:
                         identification["national_id_photo_i_c"] = id_photo_filename
-                        generated_images[id_photo_filename] = (id_photo_filename, image_buffer, 'image/jpeg')
-        
-        identification["id_type_i_c"] = " ".join(id_types) if id_types else "not_available"
+                        generated_images[id_photo_filename] = (
+                            id_photo_filename,
+                            image_buffer,
+                            "image/jpeg",
+                        )
+
+        identification["id_type_i_c"] = (
+            " ".join(id_types) if id_types else "not_available"
+        )
 
         individual_group_entry = {
             "individual_details": details,
-            "identification": identification
+            "identification": identification,
         }
         individual_questions_list.append(individual_group_entry)
 
@@ -154,9 +176,7 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
     }
 
     submission_data = {
-        "meta": {
-            "instanceID": f"uuid:{uuid.uuid4()}"
-        },
+        "meta": {"instanceID": f"uuid:{uuid.uuid4()}"},
         "start": datetime.now().isoformat(),
         "end": (datetime.now() + timedelta(minutes=randint(5, 20))).isoformat(),
         "deviceid": fake.pystr(10, 15),
@@ -165,7 +185,9 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
             "collect_individual_data_h_c": "1",
             "currency_h_c": "AFN",
             "name_enumerator_h_c": fake.name(),
-            "org_name_enumerator_h_c": choice(["AVSI", "UNCAF", "Pertinent", "AGEBU", "HELP", "Abigail"]),
+            "org_name_enumerator_h_c": choice(
+                ["AVSI", "UNCAF", "Pertinent", "AGEBU", "HELP", "Abigail"]
+            ),
         },
         "consent": consent_data,
         "household_location": {
@@ -175,9 +197,11 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
             "hh_geopoint_h_c": f"{fake.latitude()} {fake.longitude()} 0 0",
         },
         "household_status": {
-            "residence_status_h_c": choice(["idp", "host", "non_host", "others_of_concern"]),
+            "residence_status_h_c": choice(
+                ["idp", "host", "non_host", "others_of_concern"]
+            ),
             "size_h_c": str(household_size),
-            "alternate_collector": '1' if has_alternate else '0'
+            "alternate_collector": "1" if has_alternate else "0",
         },
         "income_family_h_f": choice(["1", "0"]),
         "children_6_12": str(randint(0, 3)),
@@ -190,17 +214,19 @@ def create_and_submit_one_form(config_dest, with_images=False, throttle=0):
     xml_submission_str = dict_to_xml_str(submission_data, config_dest["asset_uid"])
 
     files_to_upload = {
-        'xml_submission_file': ('submission.xml', xml_submission_str, 'text/xml'),
-        **generated_images
+        "xml_submission_file": ("submission.xml", xml_submission_str, "text/xml"),
+        **generated_images,
     }
 
     headers = {"Authorization": f"Token {config_dest['token']}"}
-    
+
     if throttle > 0:
         time.sleep(throttle)
-    
+
     try:
-        response = requests.post(config_dest["submission_url"], headers=headers, files=files_to_upload)
+        response = requests.post(
+            config_dest["submission_url"], headers=headers, files=files_to_upload
+        )
         response.raise_for_status()
         return response.status_code
 
@@ -220,7 +246,7 @@ def create_fakes(config_dest, number, image_probability, workers=10, throttle=0)
     """
     success_count = 0
     failure_count = 0
-    
+
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
             executor.submit(
@@ -231,8 +257,10 @@ def create_fakes(config_dest, number, image_probability, workers=10, throttle=0)
             )
             for _ in range(number)
         }
-        
-        for future in tqdm(as_completed(futures), total=number, desc="Submitting fake data"):
+
+        for future in tqdm(
+            as_completed(futures), total=number, desc="Submitting fake data"
+        ):
             try:
                 result = future.result()
                 if result is not None and 200 <= result < 300:
@@ -250,9 +278,19 @@ def create_fakes(config_dest, number, image_probability, workers=10, throttle=0)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate and submit fake KoBoToolbox data.")
-    parser.add_argument("-n", "--number", type=int, default=10, help="Number of submissions to create.")
-    parser.add_argument("-p", "--image-probability", type=float, default=0.1, help="Probability (0.0 to 1.0) of a submission having images.")
+    parser = argparse.ArgumentParser(
+        description="Generate and submit fake KoBoToolbox data."
+    )
+    parser.add_argument(
+        "-n", "--number", type=int, default=10, help="Number of submissions to create."
+    )
+    parser.add_argument(
+        "-p",
+        "--image-probability",
+        type=float,
+        default=0.1,
+        help="Probability (0.0 to 1.0) of a submission having images.",
+    )
     parser.add_argument(
         "--throttle",
         type=float,

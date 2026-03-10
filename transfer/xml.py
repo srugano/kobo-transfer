@@ -1,16 +1,11 @@
 import glob
 import io
-import json
 import os
 import uuid
-from datetime import datetime
 from xml.etree import ElementTree as ET
 import requests
-from .media import get_media, del_media
 from utils.text import get_valid_filename
 from helpers.config import Config
-
-from .media import del_media, get_media
 
 
 def get_submission_edit_data():
@@ -61,7 +56,9 @@ def submit_data(xml_sub, _uuid, original_uuid, xml_value_media_map):
     files = {"xml_submission_file": file_tuple}
 
     # see if there is media to upload with it
-    submission_attachments_path = os.path.join(Config.ATTACHMENTS_DIR, Config().src["asset_uid"], original_uuid, "*")
+    submission_attachments_path = os.path.join(
+        Config.ATTACHMENTS_DIR, Config().src["asset_uid"], original_uuid, "*"
+    )
     for file_path in glob.glob(submission_attachments_path):
         filename = os.path.basename(file_path)
         filename_value = xml_value_media_map.get(filename)
@@ -120,7 +117,9 @@ def transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate):
         # `meta/instanceID` is not present (small edge case)
         messages = []
         try:
-            original_uuid = submission_xml.find("meta/instanceID").text.replace("uuid:", "")
+            original_uuid = submission_xml.find("meta/instanceID").text.replace(
+                "uuid:", ""
+            )
         except AttributeError:
             original_uuid = ""
             messages.append("`instanceID` was missing in submission XML")
@@ -135,7 +134,9 @@ def transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate):
             "id": asset_data["asset_uid"],
             "version": asset_data["version"],
         }
-        update_root_element_tag_and_attrib(submission_xml, asset_data["asset_uid"], new_attrib)
+        update_root_element_tag_and_attrib(
+            submission_xml, asset_data["asset_uid"], new_attrib
+        )
         update_element_value(submission_xml, "__version__", asset_data["__version__"])
         update_element_value(submission_xml, "formhub/uuid", asset_data["formhub_uuid"])
 

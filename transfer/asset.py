@@ -15,22 +15,15 @@ def get_src_asset_details(config_src):
     asset_data = res.json()
 
     deployed_versions = asset_data["deployed_versions"]["results"]
-    files = [{"url": f["content"], "metadata": f["metadata"]} for f in asset_data["files"]]
+    files = [
+        {"url": f["content"], "metadata": f["metadata"]} for f in asset_data["files"]
+    ]
 
     asset_setup_content = {}
     for item in ["name", "settings", "asset_type"]:
         asset_setup_content[item] = asset_data[item]
 
     return asset_setup_content, deployed_versions, files
-
-
-def get_asset_definition(config_loc):
-    """
-    Get the full asset definition from the API.
-    """
-    res = requests.get(url=config_loc["asset_url_json"], headers=config_loc["headers"])
-    res.raise_for_status()
-    return res.json()
 
 
 def create_asset(config_dest, asset_setup_content):
@@ -109,10 +102,13 @@ def transfer_asset_media(config_src, config_dest, files):
             "description": "default",
             "file_type": "form_media",
             "metadata": json.dumps(file["metadata"]),
-            "base64Encoded": f"data:{file['metadata']['mimetype']};base64," + encoded_file,
+            "base64Encoded": f"data:{file['metadata']['mimetype']};base64,"
+            + encoded_file,
         }
         # `POST` file content and metadata to `dest`
-        res = requests.post(url=config_dest["files_url"], headers=dest_headers, data=data)
+        res = requests.post(
+            url=config_dest["files_url"], headers=dest_headers, data=data
+        )
         res.raise_for_status()
         print(f"✅ {file['metadata']['filename']}")
 
@@ -122,8 +118,8 @@ def transfer_asset(config):
     config_dest = config.dest
 
     _, deployed_versions, files = get_src_asset_details(config_src=config_src)
-    print("💼 Transferring all form media files")
+    print(f"💼 Transferring all {len(files)} form media files")
     transfer_asset_media(config_src, config_dest, files)
-    print("📨 Transferring and deploying all versions")
+    print(f"📨 Transferring and deploying all {len(deployed_versions)} versions")
     deploy_all_versions(config_src, config_dest, deployed_versions)
     print(f"✨ All {len(deployed_versions)} versions deployed")
