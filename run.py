@@ -211,7 +211,7 @@ def main(
     if not sync:
         if not skip_media:
             print("📸 Getting all submission media", end=" ", flush=True)
-            get_media(max_records=max_records)
+            get_media(query=json.dumps(config.data_query), max_records=max_records)
 
         print("📨 Transferring submission data")
         transfer(all_results, xml_url_src)
