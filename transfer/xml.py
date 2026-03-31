@@ -136,35 +136,44 @@ async def async_process_single_submission(client, semaphore, submission_xml, ass
                     break
 
         if primary_name:
-            removed_count = 0
-            for parent in list(submission_xml.iter()):
-                for details in parent.findall('individual_questions'):
-                    role = details.find('.//role_i_c')
-                    if role is not None and role.text != 'primary':
-                        name = details.find('.//full_name_i_c')
-                        if name is not None and name.text and name.text.strip() == primary_name:
-                            parent.remove(details)
-                            removed_count += 1
+            # First, collect all alternate individuals with the same name as primary
+            to_remove = []
+            for details in submission_xml.findall('.//individual_questions'):
+                role = details.find('.//role_i_c')
+                if role is not None and role.text != 'primary':
+                    name = details.find('.//full_name_i_c')
+                    if name is not None and name.text and name.text.strip() == primary_name:
+                        to_remove.append(details)
 
-            if removed_count > 0:
-                current_individuals = len(list(submission_xml.iter('individual_questions')))
-                old_count_str = str(current_individuals + removed_count)
-                new_count_str = str(current_individuals)
-                
-                for el in submission_xml.iter():
-                    if el.text == old_count_str:
-                        tag_lower = el.tag.lower()
-                        # Update any field that looks like a count or references the repeat group
-                        if any(keyword in tag_lower for keyword in ['count', 'num', 'individual', 'total', 'repeat']):
-                            el.text = new_count_str
+            # Then remove them (avoid modifying tree during iteration)
+            for details in to_remove:
+                parent = details.find('..')
+                if parent is not None:
+                    parent.remove(details)
 
-                # Re-index remaining individuals so there are no blank lines or gaps
-                index = 1
-                for details in submission_xml.findall('.//individual_questions'):
-                    idx_node = details.find('.//individual_index')
-                    if idx_node is not None:
-                        idx_node.text = str(index)
-                    index += 1
+            # Re-index remaining individuals sequentially (1, 2, 3, ...)
+            index = 1
+            for details in submission_xml.findall('.//individual_questions'):
+                idx_node = details.find('.//individual_index')
+                if idx_node is not None:
+                    idx_node.text = str(index)
+                index += 1
+
+            # Update the count field - try common field names
+            new_count = str(index - 1)
+            count_field_names = [
+                'individual_questions_count',
+                'individual_count',
+                'count_individual_questions',
+                'num_individual_questions',
+                'total_individual_questions',
+                'individual_questions',
+            ]
+            for field_name in count_field_names:
+                count_el = submission_xml.find(f'.//{field_name}')
+                if count_el is not None and count_el.text:
+                    count_el.text = new_count
+                    break
 
         submission_values = get_all_values_from_xml(submission_xml)
         xml_value_media_map = get_xml_value_media_mapping(submission_values)
