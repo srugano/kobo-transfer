@@ -44,7 +44,10 @@ class Config(metaclass=Singleton):
 
     @property
     def data_query(self):
-        return {"_uuid": {"$in": self.last_failed_uuids}}
+        query = {"_validation_status.uid": "validation_status_approved"}
+        if self.last_failed_uuids:
+            query["_uuid"] = {"$in": self.last_failed_uuids}
+        return query
 
     def _create_log_location(self):
         if not os.path.isdir(self.LOG_LOCATION):

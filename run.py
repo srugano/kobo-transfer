@@ -165,6 +165,7 @@ def main(
             submission_edit_data,
             quiet=quiet,
             regenerate=regenerate,
+            workers=workers,
         )
         all_results += results
 
@@ -172,10 +173,8 @@ def main(
             if max_records is None or len(all_results) < max_records:
                 transfer(all_results, next_)
 
-    xml_url_src = config_src["xml_url"] + f"?limit={limit}"
-
-    if last_failed and config.last_failed_uuids:
-        xml_url_src += f"&query={json.dumps(config.data_query)}"
+    # Always append the data_query so the "Approved" validation status filter is applied
+    xml_url_src = config_src["xml_url"] + f"?limit={limit}&query={json.dumps(config.data_query)}"
 
     if sync:
         print("🪪 Getting _uuid values from src and dest projects")

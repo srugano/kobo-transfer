@@ -3,6 +3,8 @@ import io
 import os
 import uuid
 from xml.etree import ElementTree as ET
+import asyncio
+import httpx
 import requests
 from utils.text import get_valid_filename
 from helpers.config import Config
@@ -49,30 +51,163 @@ def get_src_submissions_xml(xml_url):
     return ET.fromstring(res.text)
 
 
-def submit_data(xml_sub, _uuid, original_uuid, xml_value_media_map):
-    config = Config().dest
-
-    file_tuple = (_uuid, io.BytesIO(xml_sub))
+async def async_submit_data(client, xml_sub, _uuid, original_uuid, xml_value_media_map, config):
+    file_tuple = (_uuid, xml_sub)
     files = {"xml_submission_file": file_tuple}
 
-    # see if there is media to upload with it
     submission_attachments_path = os.path.join(
-        Config.ATTACHMENTS_DIR, Config().src["asset_uid"], original_uuid, "*"
+        Config.ATTACHMENTS_DIR, config["src_asset_uid"], original_uuid, "*"
     )
+    
+    opened_files = []
     for file_path in glob.glob(submission_attachments_path):
         filename = os.path.basename(file_path)
         filename_value = xml_value_media_map.get(filename)
-        files[filename_value] = (filename_value, open(file_path, "rb"))
+        if filename_value:
+            f = open(file_path, "rb")
+            opened_files.append(f)
+            files[filename_value] = (filename_value, f)
 
-    res = requests.Request(
-        method="POST",
-        url=config["submission_url"],
-        files=files,
-        headers=config["headers"],
-    )
-    session = requests.Session()
-    res = session.send(res.prepare())
-    return res.status_code
+    try:
+        max_retries = 5
+        backoff_factor = 1
+
+        for attempt in range(max_retries):
+            try:
+                res = await client.post(
+                    url=config["dest_url"],
+                    files=files,
+                    headers=config["dest_headers"],
+                )
+                if res.status_code not in [429, 500, 502, 503, 504]:
+                    return res.status_code
+            except (httpx.RequestError, httpx.TimeoutException) as e:
+                if attempt == max_retries - 1:
+                    return 0 # Fallback failure
+
+            # Exponential backoff
+            await asyncio.sleep(backoff_factor * (2 ** attempt))
+
+        return 500
+    finally:
+        for f in opened_files:
+            f.close()
+
+
+async def async_process_single_submission(client, semaphore, submission_xml, asset_data, quiet, regenerate):
+    async with semaphore:
+        config_obj = Config()
+        messages = []
+        try:
+            original_uuid = submission_xml.find("meta/instanceID").text.replace("uuid:", "")
+        except AttributeError:
+            original_uuid = ""
+            messages.append("`instanceID` was missing in submission XML")
+
+        if regenerate or not original_uuid:
+            _uuid, formatted_uuid = generate_new_instance_id()
+            update_element_value(submission_xml, "meta/instanceID", formatted_uuid)
+        else:
+            _uuid = original_uuid
+
+        new_attrib = {
+            "id": asset_data["asset_uid"],
+            "version": asset_data["version"],
+        }
+        update_root_element_tag_and_attrib(submission_xml, asset_data["asset_uid"], new_attrib)
+        update_element_value(submission_xml, "__version__", asset_data["__version__"])
+        update_element_value(submission_xml, "formhub/uuid", asset_data["formhub_uuid"])
+
+        for el in submission_xml.iter('phone_no_alternative_i_c'):
+            if el.text == '+95':
+                el.text = None
+
+        for el in submission_xml.iter('phone_no_i_c'):
+            if el.text == '+95':
+                el.text = None
+
+        primary_name = None
+        for details in submission_xml.findall('.//individual_questions'):
+            role = details.find('.//role_i_c')
+            if role is not None and role.text == 'primary':
+                name = details.find('.//full_name_i_c')
+                if name is not None and name.text:
+                    primary_name = name.text.strip()
+                    break
+
+        if primary_name:
+            removed_count = 0
+            for parent in list(submission_xml.iter()):
+                for details in parent.findall('individual_questions'):
+                    role = details.find('.//role_i_c')
+                    if role is not None and role.text != 'primary':
+                        name = details.find('.//full_name_i_c')
+                        if name is not None and name.text and name.text.strip() == primary_name:
+                            parent.remove(details)
+                            removed_count += 1
+
+            if removed_count > 0:
+                current_individuals = len(list(submission_xml.iter('individual_questions')))
+                old_count_str = str(current_individuals + removed_count)
+                new_count_str = str(current_individuals)
+                
+                for el in submission_xml.iter():
+                    if el.text == old_count_str:
+                        tag_lower = el.tag.lower()
+                        # Update any field that looks like a count or references the repeat group
+                        if any(keyword in tag_lower for keyword in ['count', 'num', 'individual', 'total', 'repeat']):
+                            el.text = new_count_str
+
+                # Re-index remaining individuals so there are no blank lines or gaps
+                index = 1
+                for details in submission_xml.findall('.//individual_questions'):
+                    idx_node = details.find('.//individual_index')
+                    if idx_node is not None:
+                        idx_node.text = str(index)
+                    index += 1
+
+        submission_values = get_all_values_from_xml(submission_xml)
+        xml_value_media_map = get_xml_value_media_mapping(submission_values)
+
+        xml_sub = ET.tostring(submission_xml)
+        
+        req_config = {
+            "src_asset_uid": config_obj.src["asset_uid"],
+            "dest_url": config_obj.dest["submission_url"],
+            "dest_headers": config_obj.dest["headers"],
+        }
+
+        result = await async_submit_data(
+            client, xml_sub, _uuid, original_uuid, xml_value_media_map, req_config
+        )
+
+        if result == 201:
+            messages.append(f"✅ {_uuid}")
+        elif result == 202:
+            messages.append(f"⚠️  {_uuid}")
+        else:
+            messages.append(f"❌ {_uuid}")
+            log_failure(_uuid)
+            
+        if not quiet:
+            print(" | ".join(reversed(messages)))
+            
+        return result
+
+
+async def async_transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate, workers):
+    semaphore = asyncio.Semaphore(workers)
+    limits = httpx.Limits(max_keepalive_connections=workers, max_connections=workers)
+    
+    async with httpx.AsyncClient(limits=limits, timeout=60.0) as client:
+        tasks = [
+            async_process_single_submission(
+                client, semaphore, submission_xml, asset_data, quiet, regenerate
+            )
+            for submission_xml in all_submissions_xml
+        ]
+        results = await asyncio.gather(*tasks)
+        return list(results)
 
 
 def update_element_value(e, path, value):
@@ -110,66 +245,10 @@ def generate_new_instance_id() -> (str, str):
     return _uuid, f"uuid:{_uuid}"
 
 
-def transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate):
-    results = []
-    for submission_xml in all_submissions_xml:
-        # Use the same UUID so that duplicates are rejected. Handle the case when
-        # `meta/instanceID` is not present (small edge case)
-        messages = []
-        try:
-            original_uuid = submission_xml.find("meta/instanceID").text.replace(
-                "uuid:", ""
-            )
-        except AttributeError:
-            original_uuid = ""
-            messages.append("`instanceID` was missing in submission XML")
-
-        if regenerate or not original_uuid:
-            _uuid, formatted_uuid = generate_new_instance_id()
-            update_element_value(submission_xml, "meta/instanceID", formatted_uuid)
-        else:
-            _uuid = original_uuid
-
-        new_attrib = {
-            "id": asset_data["asset_uid"],
-            "version": asset_data["version"],
-        }
-        update_root_element_tag_and_attrib(
-            submission_xml, asset_data["asset_uid"], new_attrib
-        )
-        update_element_value(submission_xml, "__version__", asset_data["__version__"])
-        update_element_value(submission_xml, "formhub/uuid", asset_data["formhub_uuid"])
-
-        # Clear phone_no_alternative_i_c if it is exactly '+95'
-        for el in submission_xml.iter('phone_no_alternative_i_c'):
-            if el.text == '+95':
-                el.text = None
-
-        # Clear phone_no_i_c if it is exactly '+95'
-        for el in submission_xml.iter('phone_no_i_c'):
-            if el.text == '+95':
-                el.text = None
-
-        submission_values = get_all_values_from_xml(submission_xml)
-        xml_value_media_map = get_xml_value_media_mapping(submission_values)
-
-        result = submit_data(
-            ET.tostring(submission_xml),
-            _uuid,
-            original_uuid,
-            xml_value_media_map,
-        )
-        if result == 201:
-            messages.append(f"✅ {_uuid}")
-        elif result == 202:
-            messages.append(f"⚠️  {_uuid}")
-        else:
-            messages.append(f"❌ {_uuid}")
-            log_failure(_uuid)
-        if not quiet:
-            print(" | ".join(reversed(messages)))
-        results.append(result)
-    return results
+def transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate, workers=10):
+    return asyncio.run(
+        async_transfer_submissions(all_submissions_xml, asset_data, quiet, regenerate, workers)
+    )
 
 
 def log_failure(_uuid):

@@ -22,19 +22,13 @@ IMAGE_DIR = "/home/stock/.cache/kagglehub/datasets/jessicali9530/celeba-dataset/
 
 fake = Faker()
 
-try:
+image_files = []
+if os.path.exists(IMAGE_DIR):
     image_files = [
         os.path.join(IMAGE_DIR, f)
         for f in os.listdir(IMAGE_DIR)
         if os.path.isfile(os.path.join(IMAGE_DIR, f))
     ]
-    if not image_files:
-        print(f"❌ Error: No images found in '{IMAGE_DIR}'")
-        exit()
-except FileNotFoundError:
-    print(f"❌ Error: Image directory not found at '{IMAGE_DIR}'")
-    print("Please make sure the local image dataset is available.")
-    exit()
 
 
 def generate_image_in_memory() -> io.BytesIO | None:

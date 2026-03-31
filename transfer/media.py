@@ -38,9 +38,19 @@ def download_all_media(data_url, stats, processed_count=0):
     config = Config().src
 
     data_url = data_url or config["data_url"]
-    data_res = requests.get(
-        data_url, headers=config["headers"], params=config["params"]
-    )
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            data_res = requests.get(
+                data_url, headers=config["headers"], params=config["params"], timeout=60
+            )
+            break
+        except requests.RequestException:
+            if attempt == max_retries - 1:
+                return stats
+            time.sleep(2 ** attempt)
+
     if data_res.status_code != 200:
         return stats
 
@@ -95,7 +105,20 @@ def download_all_media(data_url, stats, processed_count=0):
 
 def download_media_file(url, path, stats):
     config = Config().src
-    stream_res = requests.get(url, stream=True, headers=config["headers"])
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            stream_res = requests.get(url, stream=True, headers=config["headers"], timeout=60)
+            break
+        except requests.RequestException:
+            if attempt == max_retries - 1:
+                if config["verbosity"] == 3:
+                    print(f"Fail: {path}")
+                stats["failed"] += 1
+                return stats
+            time.sleep(2 ** attempt)
+
     if stream_res.status_code != 200:
         if config["verbosity"] == 3:
             print(f"Fail: {path}")
