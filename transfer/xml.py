@@ -142,6 +142,12 @@ async def async_process_single_submission(client, semaphore, submission_xml, ass
                 print(f"⏭️  Skipping non-approved submission: {original_uuid}")
             return 202  # Skip status
 
+        # Ensure the submission has at least one individual to prevent KeyError on import
+        if not submission_xml.findall('individual_questions'):
+            if not quiet:
+                print(f"⏭️  Skipping submission with no individuals: {original_uuid}")
+            return 202  # Skip status
+
         if regenerate or not original_uuid:
             _uuid, formatted_uuid = generate_new_instance_id()
             update_element_value(submission_xml, "meta/instanceID", formatted_uuid)
